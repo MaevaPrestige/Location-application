@@ -54,14 +54,14 @@ def home(request: Request):
 
 
             <!-- Statut du Ménage -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-slate-100">
-                <h2 class="font-semibold text-slate-700 mb-2">🧹 Statut du Ménage</h2>
-                <p class="text-sm text-slate-500 mb-3">Actuel : <span class="font-medium text-blue-600">{CONFIG["cleaning_status"]}</span></p>
-                <form action="/update-cleaning" method="POST" class="flex gap-2">
-                    <button type="submit" name="status" value="Validé" class="flex-1 bg-emerald-500 text-white py-2 rounded-xl text-sm font-medium">Valider</button>
-                    <button type="submit" name="status" value="À refaire" class="flex-1 bg-amber-500 text-white py-2 rounded-xl text-sm font-medium">À refaire</button>
-                </form>
-            </div>
+<div class="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-slate-100">
+    <h2 class="font-semibold text-slate-700 mb-2">✓ Statut du Ménage</h2>
+    <p class="text-sm text-slate-500 mb-3">Actuel : <span class="font-medium text-blue-600">{CONFIG['cleaning_status']}</span></p>
+    <form action="/update-cleaning" method="POST">
+        <button type="submit" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-bold text-base">Valider et envoyer le SMS</button>
+    </form>
+</div>
+
 
             <!-- Code Boîte à clés -->
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-slate-100">
