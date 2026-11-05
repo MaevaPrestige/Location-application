@@ -58,9 +58,10 @@ def home(request: Request):
     <h2 class="font-semibold text-slate-700 mb-2">✓ Statut du Ménage</h2>
     <p class="text-sm text-slate-500 mb-3">Actuel : <span class="font-medium text-blue-600">{CONFIG['cleaning_status']}</span></p>
     <form action="/update-cleaning" method="POST">
-        <button type="submit" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-bold text-base">Valider et envoyer le SMS</button>
+        <button type="submit" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-bold text-base">Valider</button>
     </form>
 </div>
+
 
 
             <!-- Code Boîte à clés -->
@@ -102,9 +103,10 @@ def home(request: Request):
 
 
 @app.post("/update-cleaning")
-def update_cleaning(status: str = Form(...)):
-    CONFIG["cleaning_status"] = status
+def update_cleaning():
+    CONFIG["cleaning_status"] = "Validé"
     return RedirectResponse(url="/", status_code=303)
+
 
 
 @app.post("/send-sms")
@@ -141,38 +143,15 @@ def create_payment(nights: int = Form(...), guests: int = Form(...)):
         )
         return RedirectResponse(url=session.url, status_code=303)
     except Exception:
-        return RedirectResponse(url="/", status_code=303)
-import json
+        return RedirectResponse(url="/", sta
+                                import json
 import os
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-
 RESERVATIONS_FILE = "reservations.json"
-
 def load_reservations():
-    if os.path.exists(RESERVATIONS_FILE):
-        with open(RESERVATIONS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    # Données d'exemple pour tester
-    return {
-        "RES-101": {
-            "nom_client": "Jean Dupont",
-            "nuitees": 3,
-            "taxe_sejour_par_nuit": 2.50,
-            "statut": "Confirmé"
-        },
-        "RES-102": {
-            "nom_client": "Marie Martin",
-            "nuitees": 5,
-            "taxe_sejour_par_nuit": 2.50,
-            "statut": "Confirmé"
-        }
-    }
+...
 
-def save_reservations(data):
-    with open(RESERVATIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-@app.get("/clients", response_class=HTMLResponse)
 def page_clients():
     reservations = load_reservations()
     
