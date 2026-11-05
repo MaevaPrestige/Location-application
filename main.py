@@ -52,6 +52,7 @@ def home(request: Request):
     <a href="/clients" class="font-bold text-lg text-white block">📋 Gérer la taxe de séjour par client</a>
 </div>
 
+
             <!-- Statut du Ménage -->
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-slate-100">
                 <h2 class="font-semibold text-slate-700 mb-2">🧹 Statut du Ménage</h2>
@@ -210,6 +211,73 @@ def page_clients():
         </div>
         """
         
+    html_content += "</body></html>"
+    return html_content
+
+@app.post("/update-taxe/{res_id}")
+def update_taxe_client(res_id: str, taxe_par_nuit: float = Form(...)):
+    reservations = load_reservations()
+    if res_id in reservations:
+        reservations[res_id]["taxe_sejour_par_nuit"] = taxe_par_nuit
+        save_reservations(reservations)
+    return RedirectResponse(url="/clients", status_code=303)
+RESERVATIONS_FILE = "reservations.json"
+
+def load_reservations():
+    if os.path.exists(RESERVATIONS_FILE):
+        with open(RESERVATIONS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {
+        "RES-101": {
+            "nom_client": "Jean Dupont",
+            "nuitees": 3,
+            "taxe_sejour_par_nuit": 2.50,
+            "statut": "Confirmé"
+        }
+    }
+
+def save_reservations(data):
+    with open(RESERVATIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
+
+@app.get("/clients", response_class=HTMLResponse)
+def page_clients():
+    reservations = load_reservations()
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Gestion de la Taxe de Séjour</title>
+        <style>
+            body { font-family: system-ui, sans-serif; padding: 15px; background: #f4f6f8; }
+            .card { background: white; padding: 15px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            h2 { color: #333; margin-top: 10px; }
+            label { display: block; margin: 10px 0 5px; font-weight: bold; }
+            input[type="number"] { width: 100%; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+            button { background: #008489; color: white; border: none; padding: 12px; width: 100%; border-radius: 5px; font-size: 16px; margin-top: 10px; font-weight: bold; }
+            .back-link { display: inline-block; margin-bottom: 15px; color: #008489; font-weight: bold; text-decoration: none; }
+        </style>
+    </head>
+    <body>
+        <a href="/" class="back-link">← Retour à l'accueil</a>
+        <h2>Taxe de séjour par client</h2>
+    """
+    for res_id, info in reservations.items():
+        total_taxe = info['taxe_sejour_par_nuit'] * info['nuitees']
+        html_content += f"""
+        <div class="card">
+            <h3>{info['nom_client']} (Réservation {res_id})</h3>
+            <p>Durée du séjour : {info['nuitees']} nuit(s)</p>
+            <p><strong>Total taxe due : {total_taxe:.2f} €</strong></p>
+            <form action="/update-taxe/{res_id}" method="post">
+                <label for="taxe">Taxe par nuit (€) :</label>
+                <input type="number" step="0.01" name="taxe_par_nuit" value="{info['taxe_sejour_par_nuit']}">
+                <button type="submit">Mettre à jour pour ce client</button>
+            </form>
+        </div>
+        """
     html_content += "</body></html>"
     return html_content
 
