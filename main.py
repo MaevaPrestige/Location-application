@@ -200,7 +200,6 @@ def update_taxe_client(res_id: str, taxe_par_nuit: float = Form(...)):
         reservations[res_id]["taxe_sejour_par_nuit"] = taxe_par_nuit
         save_reservations(reservations)
     return RedirectResponse(url="/clients", status_code=303)
-RESERVATIONS_FILE = "reservations.json"
 
 def load_reservations():
     if os.path.exists(RESERVATIONS_FILE):
@@ -251,7 +250,7 @@ def page_clients():
             <p>Durée du séjour : {info['nuitees']} nuit(s)</p>
             <p><strong>Total taxe due : {total_taxe:.2f} €</strong></p>
             <form action="/update-taxe/{res_id}" method="post">
-                <label for="taxe">Taxe par nuit (€) :</label>
+                <label for="taxe">Taxe par nuit (XPF) :</label>
                 <input type="number" step="0.01" name="taxe_par_nuit" value="{info['taxe_sejour_par_nuit']}">
                 <button type="submit">Mettre à jour pour ce client</button>
             </form>
