@@ -48,6 +48,9 @@ def home(request: Request):
                 <h1 class="text-xl font-bold">🏖️ Maeva Prestige</h1>
                 <p class="text-xs text-blue-100 mt-1">Application de Gestion & Conciergerie</p>
             </header>
+<div class="bg-teal-600 text-white p-4 rounded-2xl shadow-md mb-6 text-center">
+    <a href="/clients" class="font-bold text-lg text-white block">📋 Gérer la taxe de séjour par client</a>
+</div>
 
             <!-- Statut du Ménage -->
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-4 border border-slate-100">
