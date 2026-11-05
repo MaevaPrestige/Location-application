@@ -81,7 +81,11 @@ def home():
             <!-- Code Boîte à clés -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                 <h2 class="font-semibold text-slate-700 mb-2">🔐 Boîte à clés</h2>
-                <p class="text-2xl font-mono font-bold text-slate-800 tracking-widest text-center bg-slate-100 py-3 rounded-xl">{CONFIG['key_box_code']}</p>
+                <p class="text-2xl font-mono font-bold text-slate-800 tracking-widest text-center bg-slate-100 py-3 rounded-xl mb-3">{CONFIG['key_box_code']}</p>
+                <form action="/update-key" method="POST" class="space-y-2">
+                    <input type="text" name="new_key" placeholder="Nouveau code..." class="w-full p-2 border rounded-xl text-sm" required>
+                    <button type="submit" class="w-full bg-slate-800 text-white p-2 rounded-xl text-sm font-medium">Modifier le code</button>
+                </form>
             </div>
 
             <!-- Paiement Taxe de séjour & Caution -->
@@ -104,7 +108,7 @@ def home():
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                 <h2 class="font-semibold text-slate-700 mb-2">📱 Alerte SMS Rapide</h2>
                 <form action="/send-sms" method="POST" class="space-y-3">
-                    <input type="text" name="phone" placeholder="Numéro (ex: +336...)" class="w-full p-2 border rounded-xl text-sm" required>
+                    <input type="text" name="phone" placeholder="Numéro (ex: +689...)" class="w-full p-2 border rounded-xl text-sm" required>
                     <textarea name="message" placeholder="Message..." class="w-full p-2 border rounded-xl text-sm" rows="2" required></textarea>
                     <button type="submit" class="w-full bg-slate-800 text-white p-2 rounded-xl text-sm font-medium">Envoyer SMS</button>
                 </form>
@@ -118,6 +122,11 @@ def home():
 @app.post("/update-cleaning")
 def update_cleaning():
     CONFIG["cleaning_status"] = "Validé"
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/update-key")
+def update_key(new_key: str = Form(...)):
+    CONFIG["key_box_code"] = new_key
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/send-sms")
@@ -208,4 +217,3 @@ def update_taxe_client(res_id: str, taxe_par_nuit: float = Form(...)):
         reservations[res_id]["taxe_sejour_par_nuit"] = taxe_par_nuit
         save_reservations(reservations)
     return RedirectResponse(url="/clients", status_code=303)
-
