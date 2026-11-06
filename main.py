@@ -1,24 +1,14 @@
 import os
 import json
+import httpx
 from fastapi import FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-import twilio.rest
 import stripe
 
 app = FastAPI()
 
-# Configuration Twilio & Stripe depuis les variables d'environnement Render
-TWILIO_ACCOUNT_SID = os.environ.get("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.environ.get("TWILIO_AUTH_TOKEN")
-TWILIO_PHONE_NUMBER = os.environ.get("TWILIO_PHONE_NUMBER")
-
-twilio_client = None
-if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
-    try:
-        twilio_client = twilio.rest.Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    except Exception:
-        pass
-
+# Configuration Brevo & Stripe depuis les variables d'environnement Render
+BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 stripe.api_key = os.environ.get("STRIPE_API_KEY", "sk_test_...")
 
 CONFIG = {
@@ -108,11 +98,11 @@ def home():
                 </form>
             </div>
 
-            <!-- Alerte SMS Twilio -->
+            <!-- Alerte SMS Brevo -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                <h2 class="font-semibold text-slate-700 mb-2">📱 Alerte SMS Rapide</h2>
+                <h2 class="font-semibold text-slate-700 mb-2">📱 Alerte SMS Rapide (Brevo)</h2>
                 <form action="/send-sms" method="POST" class="space-y-3">
-                    <input type="text" name="phone" placeholder="Numéro (ex: +689...)" class="w-full p-2 border rounded-xl text-sm" required>
+                    <input type="text" name="phone" placeholder="Numéro (ex: +33... ou +689...)" class="w-full p-2 border rounded-xl text-sm" required>
                     <textarea name="message" placeholder="Message..." class="w-full p-2 border rounded-xl text-sm" rows="2" required></textarea>
                     <button type="submit" class="w-full bg-slate-800 text-white p-2 rounded-xl text-sm font-medium">Envoyer SMS</button>
                 </form>
@@ -134,16 +124,24 @@ def update_key(new_key: str = Form(...)):
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/send-sms")
-def send_sms(phone: str = Form(...), message: str = Form(...)):
-    if twilio_client and TWILIO_PHONE_NUMBER:
-        try:
-            twilio_client.messages.create(
-                body=message,
-                from_=TWILIO_PHONE_NUMBER,
-                to=phone
-            )
-        except Exception:
-            pass
+async def send_sms(phone: str = Form(...), message: str = Form(...)):
+    if BREVO_API_KEY:
+        url = "https://api.brevo.com/v3/transactionalSMS/send"
+        headers = {
+            "api-key": BREVO_API_KEY,
+            "content-type": "application/json"
+        }
+        payload = {
+            "sender": "MaevaPrestige",
+            "recipient": phone,
+            "content": message,
+            "type": "transactional"
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                await client.post(url, json=payload, headers=headers)
+            except Exception:
+                pass
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/create-payment")
@@ -350,7 +348,6 @@ def generate_receipt(res_id: str):
 @app.get("/monthly-report", response_class=HTMLResponse)
 def monthly_report_selector():
     reservations = load_reservations()
-    # Extraire les mois disponibles (ex: "2026-11") à partir des dates d'arrivée
     months = set()
     for info in reservations.values():
         arr = info.get("date_arrivee", "")
