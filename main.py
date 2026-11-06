@@ -102,7 +102,7 @@ def home():
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
                 <h2 class="font-semibold text-slate-700 mb-2">📱 Alerte SMS Rapide (Brevo)</h2>
                 <form action="/send-sms" method="POST" class="space-y-3">
-                    <input type="text" name="phone" placeholder="Numéro (ex: +33... ou +689...)" class="w-full p-2 border rounded-xl text-sm" required>
+                    <input type="text" name="phone" placeholder="Numéro (ex: 336... ou 689... sans +)" class="w-full p-2 border rounded-xl text-sm" required>
                     <textarea name="message" placeholder="Message..." class="w-full p-2 border rounded-xl text-sm" rows="2" required></textarea>
                     <button type="submit" class="w-full bg-slate-800 text-white p-2 rounded-xl text-sm font-medium">Envoyer SMS</button>
                 </form>
@@ -129,11 +129,14 @@ async def send_sms(phone: str = Form(...), message: str = Form(...)):
         url = "https://api.brevo.com/v3/transactionalSMS/send"
         headers = {
             "api-key": BREVO_API_KEY,
-            "content-type": "application/json"
+            "content-type": "application/json",
+            "accept": "application/json"
         }
+        # Nettoyage du numéro : suppression du '+' si présent pour respecter le format Brevo
+        clean_phone = phone.replace("+", "").strip()
         payload = {
-            "sender": "MaevaPrestige",
-            "recipient": phone,
+            "sender": "MaevaPresti",
+            "recipient": clean_phone,
             "content": message,
             "type": "transactional"
         }
