@@ -1,7 +1,7 @@
 import os
 import json
 import httpx
-from fastapi import FastAPI, Form, Request
+from fastapi import FastAPI, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 import stripe
 
@@ -10,6 +10,7 @@ app = FastAPI()
 # Configuration Brevo & Stripe depuis les variables d'environnement Render
 BREVO_API_KEY = os.environ.get("BREVO_API_KEY")
 stripe.api_key = os.environ.get("STRIPE_API_KEY", "sk_test_...")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 
 CONFIG = {
     "taxe_par_nuit_par_personne": 150.0,
@@ -26,12 +27,13 @@ def load_reservations():
     return {
         "RES-101": {
             "nom_client": "Jean Dupont",
+            "email_relais": "jean.dupont.abc@s.airbnb.com",
             "date_arrivee": "2026-11-10",
             "date_depart": "2026-11-13",
             "nuitees": 3,
             "nb_personnes": 2,
             "taxe_sejour_par_nuit": 150.0,
-            "statut_paiement": "Payé"
+            "statut_paiement": "En attente"
         }
     }
 
@@ -41,6 +43,13 @@ def save_reservations(data):
 
 @app.get("/", response_class=HTMLResponse)
 def home():
+    reservations = load_reservations()
+    
+    # Construction des options pour la liste déroulante des réservations
+    options_html = ""
+    for res_id, info in reservations.items():
+        options_html += f'<option value="{res_id}">{info["nom_client"]} ({res_id}) - {info["email_relais"]}</option>'
+
     html_content = f"""
     <!DOCTYPE html>
     <html lang="fr">
@@ -63,48 +72,29 @@ def home():
                 <a href="/monthly-report" class="font-bold text-base text-white block border-t border-teal-500 pt-2">📊 Rapports Mensuels Propriétaires</a>
             </div>
 
-            <!-- Statut du Ménage -->
+            <!-- Statut du Ménage & Envoi Automatique (Sans Code) -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                <h2 class="font-semibold text-slate-700 mb-2">🧹 Statut du Ménage</h2>
-                <p class="text-2xl font-medium text-blue-600 mb-3">{CONFIG['cleaning_status']}</p>
-                <form action="/update-cleaning" method="POST">
-                    <button type="submit" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-bold text-base">Valider</button>
+                <h2 class="font-semibold text-slate-700 mb-2">🧹 Valider le Ménage & Notifier</h2>
+                <p class="text-xl font-medium text-blue-600 mb-3">{CONFIG['cleaning_status']}</p>
+                <form action="/update-cleaning" method="POST" class="space-y-3">
+                    <div>
+                        <label class="text-xs text-slate-500 block mb-1">Sélectionner la réservation</label>
+                        <select name="res_id" class="w-full p-2 border rounded-xl text-sm bg-white" required>
+                            {options_html}
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-emerald-500 text-white p-3 rounded-xl font-bold text-base">Valider Ménage & Envoyer lien de paiement</button>
                 </form>
+                <p class="text-xs text-slate-400 mt-2">Le client recevra le lien de paiement. Le code d'entrée ne sera envoyé qu'après validation du paiement par Stripe.</p>
             </div>
 
             <!-- Code Boîte à clés -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                <h2 class="font-semibold text-slate-700 mb-2">🔐 Boîte à clés</h2>
+                <h2 class="font-semibold text-slate-700 mb-2">🔐 Boîte à clés (Actuel)</h2>
                 <p class="text-2xl font-mono font-bold text-slate-800 tracking-widest text-center bg-slate-100 py-3 rounded-xl mb-3">{CONFIG['key_box_code']}</p>
                 <form action="/update-key" method="POST" class="space-y-2">
                     <input type="text" name="new_key" placeholder="Nouveau code..." class="w-full p-2 border rounded-xl text-sm" required>
                     <button type="submit" class="w-full bg-slate-800 text-white p-2 rounded-xl text-sm font-medium">Modifier le code</button>
-                </form>
-            </div>
-
-            <!-- Paiement Taxe de séjour -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                <h2 class="font-semibold text-slate-700 mb-2">💳 Encaissement Taxe de Séjour</h2>
-                <form action="/create-payment" method="POST" class="space-y-3">
-                    <div>
-                        <label class="text-xs text-slate-500 block mb-1">Nombre de nuits</label>
-                        <input type="number" name="nights" value="3" class="w-full p-2 border rounded-xl text-sm" required>
-                    </div>
-                    <div>
-                        <label class="text-xs text-slate-500 block mb-1">Nombre de voyageurs</label>
-                        <input type="number" name="guests" value="2" class="w-full p-2 border rounded-xl text-sm" required>
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded-xl font-medium text-sm shadow-sm">Payer la Taxe de Séjour</button>
-                </form>
-            </div>
-
-            <!-- Alerte SMS Brevo -->
-            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                <h2 class="font-semibold text-slate-700 mb-2">📱 Alerte SMS Rapide (Brevo)</h2>
-                <form action="/send-sms" method="POST" class="space-y-3">
-                    <input type="text" name="phone" placeholder="Numéro (ex: 336... ou 689... sans +)" class="w-full p-2 border rounded-xl text-sm" required>
-                    <textarea name="message" placeholder="Message..." class="w-full p-2 border rounded-xl text-sm" rows="2" required></textarea>
-                    <button type="submit" class="w-full bg-slate-800 text-white p-2 rounded-xl text-sm font-medium">Envoyer SMS</button>
                 </form>
             </div>
         </div>
@@ -114,41 +104,22 @@ def home():
     return html_content
 
 @app.post("/update-cleaning")
-def update_cleaning():
-    CONFIG["cleaning_status"] = "Validé"
-    return RedirectResponse(url="/", status_code=303)
+async def update_cleaning(res_id: str = Form(...)):
+    reservations = load_reservations()
+    if res_id not in reservations:
+        return RedirectResponse(url="/", status_code=303)
 
-@app.post("/update-key")
-def update_key(new_key: str = Form(...)):
-    CONFIG["key_box_code"] = new_key
-    return RedirectResponse(url="/", status_code=303)
+    res = reservations[res_id]
+    CONFIG["cleaning_status"] = f"Validé pour {res['nom_client']}"
+    
+    nb_pers = res.get("nb_personnes", 2)
+    nuitees = res.get("nuitees", 1)
+    taxe_nuit = res.get("taxe_sejour_par_nuit", 150.0)
+    total_tax = int(taxe_nuit * nuitees * nb_pers)
+    email_relais = res.get("email_relais")
 
-@app.post("/send-sms")
-async def send_sms(phone: str = Form(...), message: str = Form(...)):
-    if BREVO_API_KEY:
-        url = "https://api.brevo.com/v3/transactionalSMS/send"
-        headers = {
-            "api-key": BREVO_API_KEY,
-            "content-type": "application/json",
-            "accept": "application/json"
-        }
-        clean_phone = phone.replace("+", "").strip()
-        payload = {
-            "sender": "MaevaPresti",
-            "recipient": clean_phone,
-            "content": message,
-            "type": "transactional"
-        }
-        async with httpx.AsyncClient() as client:
-            try:
-                await client.post(url, json=payload, headers=headers)
-            except Exception:
-                pass
-    return RedirectResponse(url="/", status_code=303)
-
-@app.post("/create-payment")
-def create_payment(nights: int = Form(...), guests: int = Form(...)):
-    total_tax = nights * guests * CONFIG["taxe_par_nuit_par_personne"]
+    # Création de la session Stripe avec les métadonnées (pour identifier la réservation au paiement)
+    checkout_url = "https://location-application.onrender.com/"
     try:
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
@@ -156,8 +127,8 @@ def create_payment(nights: int = Form(...), guests: int = Form(...)):
                 {
                     "price_data": {
                         "currency": "xpf",
-                        "product_data": {"name": "Taxe de séjour"},
-                        "unit_amount": int(total_tax),
+                        "product_data": {"name": f"Taxe de séjour - {res['nom_client']} ({res_id})"},
+                        "unit_amount": total_tax,
                     },
                     "quantity": 1,
                 }
@@ -165,10 +136,100 @@ def create_payment(nights: int = Form(...), guests: int = Form(...)):
             mode="payment",
             success_url="https://location-application.onrender.com/",
             cancel_url="https://location-application.onrender.com/",
+            metadata={
+                "res_id": res_id,
+                "email_relais": email_relais
+            }
         )
-        return RedirectResponse(url=session.url, status_code=303)
+        checkout_url = session.url
     except Exception:
-        return RedirectResponse(url="/", status_code=303)
+        pass
+
+    # Envoi du premier e-mail via Brevo (SANS LE CODE D'ENTRÉE)
+    if BREVO_API_KEY and email_relais:
+        url = "https://api.brevo.com/v3/smtp/email"
+        headers = {
+            "api-key": BREVO_API_KEY,
+            "content-type": "application/json",
+            "accept": "application/json"
+        }
+        email_payload = {
+            "sender": {"name": "Maeva Prestige", "email": "contact@maevaprestige.com"},
+            "to": [{"email": email_relais}],
+            "subject": "Votre logement est prêt - Taxe de séjour à régler",
+            "htmlContent": f"""
+                <p>Bonjour {res['nom_client']},</p>
+                <p>Votre logement préparé par <b>Maeva Prestige</b> est désormais libre et prêt à vous accueillir !</p>
+                <p>Pour finaliser votre arrivée et recevoir immédiatement votre code d'accès à la boîte à clés, merci de bien vouloir régler la taxe de séjour d'un montant de <b>{total_tax} XPF</b> en cliquant sur le lien sécurisé ci-dessous :</p>
+                <p><a href="{checkout_url}" style="background:#008489; color:white; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold; display:inline-block;">Régler la taxe de séjour</a></p>
+                <p>À très vite !</p>
+            """
+        }
+        async with httpx.AsyncClient() as client:
+            try:
+                await client.post(url, json=email_payload, headers=headers)
+            except Exception:
+                pass
+
+    return RedirectResponse(url="/", status_code=303)
+
+@app.post("/stripe-webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("Stripe-Signature")
+
+    try:
+        if STRIPE_WEBHOOK_SECRET:
+            event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+        else:
+            event = json.loads(payload.decode('utf-8'))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Quand le paiement est validé avec succès par Stripe
+    if event.get("type") == "checkout.session.completed":
+        session = event.get("data", {}).get("object", {})
+        metadata = session.get("metadata", {})
+        res_id = metadata.get("res_id")
+        email_relais = metadata.get("email_relais")
+
+        if res_id:
+            reservations = load_reservations()
+            if res_id in reservations:
+                reservations[res_id]["statut_paiement"] = "Payé"
+                save_reservations(reservations)
+
+                # ENVOI AUTOMATIQUE DU CODE DE LA BOÎTE À CLÉS (Puisque c'est payé)
+                if BREVO_API_KEY and email_relais:
+                    url = "https://api.brevo.com/v3/smtp/email"
+                    headers = {
+                        "api-key": BREVO_API_KEY,
+                        "content-type": "application/json",
+                        "accept": "application/json"
+                    }
+                    email_payload = {
+                        "sender": {"name": "Maeva Prestige", "email": "contact@maevaprestige.com"},
+                        "to": [{"email": email_relais}],
+                        "subject": "Paiement validé - Votre code d'accès Boîte à clés",
+                        "htmlContent": f"""
+                            <p>Merci ! Votre paiement de la taxe de séjour a bien été validé.</p>
+                            <p>Voici votre code d'accès personnel pour la boîte à clés :</p>
+                            <h2 style="color: #008489; font-size: 24px; font-family: monospace;">{CONFIG['key_box_code']}</h2>
+                            <p>Nous vous souhaitons un excellent séjour à Moorea !</p>
+                        """
+                    }
+                    async with httpx.AsyncClient() as client:
+                        try:
+                            await client.post(url, json=email_payload, headers=headers)
+                        except Exception:
+                            pass
+
+    return {"status": "success"}
+
+@app.post("/update-key")
+def update_key(new_key: str = Form(...)):
+    CONFIG["key_box_code"] = new_key
+    return RedirectResponse(url="/", status_code=303)
 
 @app.get("/clients", response_class=HTMLResponse)
 def page_clients():
@@ -210,9 +271,9 @@ def page_clients():
         <div class="card">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h3>{info['nom_client']} ({res_id})</h3>
-                <span class="badge">{info.get('statut_paiement', 'Payé')}</span>
+                <span class="badge">{info.get('statut_paiement', 'En attente')}</span>
             </div>
-            
+            <p style="font-size: 13px; color: #666; margin: 2px 0;"><strong>Relais :</strong> {info.get('email_relais', 'N/A')}</p>
             <p style="font-size: 14px; margin: 4px 0;"><strong>Dates :</strong> Du {date_arr} au {date_dep} ({nuitees} nuit(s))</p>
             <p style="font-size: 14px; margin: 4px 0;"><strong>Voyageurs :</strong> {nb_pers} personne(s)</p>
             <p style="font-size: 16px; color: #2b6cb0; margin: 8px 0;"><strong>Total taxe due : {total_taxe:.0f} XPF</strong></p>
@@ -240,6 +301,8 @@ def page_clients():
                 </div>
                 <label>Taxe / pers / nuit (XPF) :</label>
                 <input type="number" step="1" name="taxe_par_nuit" value="{taxe_nuit}" required>
+                <label>E-mail relais (Airbnb/Booking) :</label>
+                <input type="text" name="email_relais" value="{info.get('email_relais', '')}" required>
                 
                 <button type="submit">Mettre à jour les infos</button>
             </form>
@@ -260,7 +323,8 @@ def update_taxe_client(
     date_arrivee: str = Form(...),
     date_depart: str = Form(...),
     nb_personnes: int = Form(...),
-    nuitees: int = Form(...)
+    nuitees: int = Form(...),
+    email_relais: str = Form(...)
 ):
     reservations = load_reservations()
     if res_id in reservations:
@@ -269,6 +333,7 @@ def update_taxe_client(
         reservations[res_id]["date_depart"] = date_depart
         reservations[res_id]["nb_personnes"] = nb_personnes
         reservations[res_id]["nuitees"] = nuitees
+        reservations[res_id]["email_relais"] = email_relais
         save_reservations(reservations)
     return RedirectResponse(url="/clients", status_code=303)
 
@@ -478,4 +543,3 @@ def generate_monthly_pdf(year_month: str):
     </html>
     """
     return html_content
-
