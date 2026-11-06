@@ -82,9 +82,9 @@ def home():
                 </form>
             </div>
 
-            <!-- Paiement Taxe de séjour & Caution -->
+            <!-- Paiement Taxe de séjour -->
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                <h2 class="font-semibold text-slate-700 mb-2">💳 Espace Voyageur (Stripe)</h2>
+                <h2 class="font-semibold text-slate-700 mb-2">💳 Encaissement Taxe de Séjour</h2>
                 <form action="/create-payment" method="POST" class="space-y-3">
                     <div>
                         <label class="text-xs text-slate-500 block mb-1">Nombre de nuits</label>
@@ -94,7 +94,7 @@ def home():
                         <label class="text-xs text-slate-500 block mb-1">Nombre de voyageurs</label>
                         <input type="number" name="guests" value="2" class="w-full p-2 border rounded-xl text-sm" required>
                     </div>
-                    <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded-xl font-medium text-sm shadow-sm">Payer Taxe & Caution</button>
+                    <button type="submit" class="w-full bg-blue-600 text-white p-3 rounded-xl font-medium text-sm shadow-sm">Payer la Taxe de Séjour</button>
                 </form>
             </div>
 
@@ -132,7 +132,6 @@ async def send_sms(phone: str = Form(...), message: str = Form(...)):
             "content-type": "application/json",
             "accept": "application/json"
         }
-        # Nettoyage du numéro : suppression du '+' si présent pour respecter le format Brevo
         clean_phone = phone.replace("+", "").strip()
         payload = {
             "sender": "MaevaPresti",
@@ -157,7 +156,7 @@ def create_payment(nights: int = Form(...), guests: int = Form(...)):
                 {
                     "price_data": {
                         "currency": "xpf",
-                        "product_data": {"name": "Taxe de séjour & Caution"},
+                        "product_data": {"name": "Taxe de séjour"},
                         "unit_amount": int(total_tax),
                     },
                     "quantity": 1,
@@ -479,3 +478,4 @@ def generate_monthly_pdf(year_month: str):
     </html>
     """
     return html_content
+
